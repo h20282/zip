@@ -38,7 +38,8 @@ class Compare_Node_Pointer{
 };
 
 Node *create_hfmTree_by_byte_cnt(int const byte_cnt[]){
-	/* 根据byte_cnt生成哈夫曼树，然后返回该树的根节点
+	/**
+	 *根据byte_cnt生成哈夫曼树，然后返回该树的根节点
 	 * @byte_cnt: 长度为256的数组，保存某字节在文件中出现的次数
 	 * 			  例如：byte_cnt[65] = 101 表示字节65在文件中出现了101次 
 	 */
@@ -58,12 +59,18 @@ Node *create_hfmTree_by_byte_cnt(int const byte_cnt[]){
 }
 
 void print_hfmTree(Node *root, int deep = 1, string code=".") {
+	/**
+	 *打印这颗二叉树 
+	 * @root 树的根节点
+	 * @deep 此节点的深度
+	 * @code 从根节点遍历到此处的路径码，向左用0表示，向右用1表示
+	 */
 	if (!root) {
 		return;
 	}
 	// cout << "__LINE__ = " << __LINE__ << endl; //log
 	// cout << "deep = " << deep << endl; //log
-	print_hfmTree(root->rchild, deep+1, code+"0");
+	print_hfmTree(root->rchild, deep+1, code+"1");
 	for (int i = 0; i < deep; ++i){
 		printf(i==deep-1?"+----": (code[i]==code[i+1]?"     ":"|    "));
 	}
@@ -72,11 +79,12 @@ void print_hfmTree(Node *root, int deep = 1, string code=".") {
 	}else{
 		printf("(%d)\n", root->c);
 	}
-	print_hfmTree(root->lchild, deep+1, code+"1");
+	print_hfmTree(root->lchild, deep+1, code+"0");
 }
 
 bool get_by_bit(unsigned char const arr[], int idx) {
-	/* 按比特获取字符数组中下标为idx的那一位
+	/**
+	 * 按比特获取字符数组中下标为idx的那一位
 	 * @arr: 字符数组 
 	 * @idx: 下标
 	 */
@@ -84,7 +92,8 @@ bool get_by_bit(unsigned char const arr[], int idx) {
 }
 
 void set_by_bit(unsigned char arr[], int idx, bool value){
-	/* 按比特设置字符数组中下标为idx的那一位
+	/**
+	 * 按比特设置字符数组中下标为idx的那一位
 	 * @arr: 字符数组 
 	 * @idx: 下标
 	 */
@@ -93,16 +102,17 @@ void set_by_bit(unsigned char arr[], int idx, bool value){
 	arr[idx/8] &= (~(1 << (7 - idx%8)));
 }
 
-void encode_hfmTree(Node const *root, vector<bool> &bool_code, vector<unsigned char> &byte_sequence){
-	/* 将哈夫曼树用01编码，将树的结构01序列表示，叶子节点
+void encode_hfmTree(Node const *root, vector<bool> &tree_struct_code, vector<unsigned char> &byte_sequence){
+	/**
+	 * 将哈夫曼树用01编码，将树的结构用01序列表示，叶子节点用字节序列表示
 	 * 使用栈先序遍历哈夫曼树，0表示入栈，1表示出栈
 	 * @root: 哈夫曼树的根节点
-	 * @bool_code: 输出，用01序列表示的压缩过的树的结构
+	 * @tree_struct_code: 输出，用01序列表示的压缩过的树的结构
 	 * @byte_sequence: 输出，先序遍历哈夫曼树时访问叶子节点的序列
 	 */
 	stack<const Node *> s;
 	s.push(root);
-	bool_code.push_back(0);
+	tree_struct_code.push_back(0);
 	map<const Node *, bool> vis;
 	while(s.size()){
 		const Node *curr = s.top();
@@ -110,24 +120,25 @@ void encode_hfmTree(Node const *root, vector<bool> &bool_code, vector<unsigned c
 		if (curr->lchild){
 			if (!vis[curr->lchild]) {
 				s.push(curr->lchild);
-				bool_code.push_back(0);
+				tree_struct_code.push_back(0);
 			} else if (!vis[curr->rchild]) {
 				s.push(curr->rchild);
-				bool_code.push_back(0);
+				tree_struct_code.push_back(0);
 			} else {
-				bool_code.push_back(1); s.pop();
+				tree_struct_code.push_back(1); s.pop();
 			}
 		} else {
-			bool_code.push_back(1); s.pop();
+			tree_struct_code.push_back(1); s.pop();
 			byte_sequence.push_back(curr->c);
 		}
 
 	}
 }
 
-Node* decode_hfmTree(const vector<bool> &bool_code, const vector<unsigned char> &byte_sequence){
-	/* 将01序列和字节序列解码成哈夫曼树
-	 * @bool_code: 01序列，表示一棵哈夫曼树
+Node* decode_hfmTree(const vector<bool> &tree_struct_code, const vector<unsigned char> &byte_sequence){
+	/**
+	 * 将01序列和字节序列解码成哈夫曼树
+	 * @tree_struct_code: 01序列，表示一棵哈夫曼树
 	 * @byte_sequence: 叶子节点序列
 	 * 先序建树，0表示向下新建节点（当前节点没有左孩子则新建左孩子，有则新建右孩子）；
 	 * 1表示回溯（向上）
@@ -135,7 +146,7 @@ Node* decode_hfmTree(const vector<bool> &bool_code, const vector<unsigned char> 
 	stack<Node *> s;
 	Node *root;
 	int p = 0;
-	for ( auto i : bool_code ) {
+	for ( auto i : tree_struct_code ) {
 		if (i==0) {
 			if (s.size()) {
 				Node *curr = new Node(0,0);
@@ -158,26 +169,28 @@ Node* decode_hfmTree(const vector<bool> &bool_code, const vector<unsigned char> 
 	return root;
 }
 
-void get_byte_to_01(vector<string> &byte_to_01, Node * root, string curr_code = ""){
-	/* 从将哈夫曼树获取 字节->01序列 的映射关系
-	 * @byte_to_01 输出，映射关系
+void get_encode_table(vector<string> &encode_table, Node * root, string curr_code = ""){
+	/**
+	 * 从哈夫曼树获取编码表
+	 * @encode_table 输出，编码表，即（ 字节 --> 01序列 ）的映射关系
 	 * @root 哈夫曼树的根节点
 	 * @curr_code 用于递归迭代
 	 */
 	if (root->lchild==NULL){
-		byte_to_01[root->c] = curr_code;
+		encode_table[root->c] = curr_code;
 		return;
 	}else{
-		get_byte_to_01(byte_to_01, root->lchild, curr_code+"0");
-		get_byte_to_01(byte_to_01, root->rchild, curr_code+"1");
+		get_encode_table(encode_table, root->lchild, curr_code+"0");
+		get_encode_table(encode_table, root->rchild, curr_code+"1");
 	}
 }
 
 vector<unsigned char> zip_process(unsigned char *buf, int file_len){
-	/* 将buf处开始，file_len字节长的数据压缩，返回压缩后的结果
-	 * 压缩后的格式： 有效长度（32bit） + 表示树结构的01序列 + 表示叶子节点的byte序列 + 压缩表示的数据
+	/**
+	 * 将buf处开始，file_len字节长的数据压缩，返回压缩后的结果
+	 * 压缩后的格式： 结尾无效位长度（3bit） + 表示树结构的01序列 + 表示叶子节点的byte序列 + 压缩表示的数据 + 填充的无效位
 	 * @buf: 首地址
-	 * @file_len: 需要压缩的长度，单位为字节
+	 * @file_len: 需要压缩的长度，单位：字节
 	 */
 
 	/* 1. 统计每种字节出现的次数 */
@@ -191,12 +204,12 @@ vector<unsigned char> zip_process(unsigned char *buf, int file_len){
 	print_hfmTree(root); //log
 	
 	/* 3. 将哈夫曼树的结构编码，获得代表结构的01序列和叶子节点的序列 */
-	vector<bool> bool_code;
+	vector<bool> tree_struct_code;
 	vector<unsigned char> byte_sequence;
-	encode_hfmTree(root, bool_code, byte_sequence);
+	encode_hfmTree(root, tree_struct_code, byte_sequence);
 	//log
 	cout << "__LINE__ = " << __LINE__ << endl; //log
-	for ( auto v : bool_code ) {
+	for ( auto v : tree_struct_code ) {
 		cout << v;
 	}
 	cout << endl;
@@ -206,22 +219,22 @@ vector<unsigned char> zip_process(unsigned char *buf, int file_len){
 	cout << endl;
 
 	/* 4. 获取每个字节对应的01序列 */
-	vector<string > byte_to_01(256);
-	get_byte_to_01(byte_to_01, root);
+	vector<string > encode_table(256);
+	get_encode_table(encode_table, root);
 
 	/* 5. 计算输出文件的大小(单位：比特)，创建输出缓冲区 */
-	int bool_code_len = bool_code.size();
+	int tree_struct_code_len = tree_struct_code.size();
 	int byte_sequence_len = byte_sequence.size()*8;
-	int out_file_len = 3 + bool_code_len + byte_sequence_len;
+	int out_file_len = 3 + tree_struct_code_len + byte_sequence_len;
 	// 3 : useless_bit_cnt
 	for (int i = 0; i < 256; ++i){
-		out_file_len += byte_to_01[i].size()*byte_cnt[i];
+		out_file_len += encode_table[i].size()*byte_cnt[i];
 	}
 	vector<unsigned char> out_buf_vector(out_file_len/8 + (out_file_len%8!=0));
 	unsigned char* out_buf_char_star = &out_buf_vector[0];
 	// log
 	cout << "__LINE__ = " << __LINE__ << endl; //log
-	cout << "bool_code_len = " << bool_code_len << endl; //log
+	cout << "tree_struct_code_len = " << tree_struct_code_len << endl; //log
 	cout << "byte_sequence.size() = " << byte_sequence.size() << endl; //log
 	cout << "out_file_len = " << out_file_len << endl; //log
 
@@ -235,8 +248,8 @@ vector<unsigned char> zip_process(unsigned char *buf, int file_len){
 
 	/* 6.2 将代表树的结构的01序列填入缓冲区 */
 	int pointer = 3;
-	for (int i = 0; i < bool_code.size(); ++i){
-		set_by_bit(out_buf_char_star, pointer++, bool_code[i]);
+	for (int i = 0; i < tree_struct_code.size(); ++i){
+		set_by_bit(out_buf_char_star, pointer++, tree_struct_code[i]);
 	}
 
 	/* 6.3 将代表叶子节点信息的叶子节点序列填入缓冲区 */
@@ -249,8 +262,8 @@ vector<unsigned char> zip_process(unsigned char *buf, int file_len){
 
 	/* 6.4 将每个字节对应的变长01序列填入缓冲区 */
 	for (int i = 0; i < file_len; ++i){
-		string const &curr_byte_to_01 = byte_to_01[buf[i]];
-		for ( auto v : curr_byte_to_01 ){
+		string const &code = encode_table[buf[i]];
+		for ( auto v : code ){
 			set_by_bit(out_buf_char_star, pointer++, v=='1');
 		}
 	}
@@ -259,8 +272,10 @@ vector<unsigned char> zip_process(unsigned char *buf, int file_len){
 }
 
 vector<unsigned char> unzip_process(unsigned char *buf, int file_len){
-	/*
-	 *
+	/**
+	 * 将buf处开始，file_len字节长的数据解压，返回解压后的结果
+	 * @buf: 首地址
+	 * @file_len: buf的长度，单位：字节
 	 */
 
 	int pointer = 3; // 跳过记录结尾无效bit长度的32位
@@ -275,13 +290,13 @@ vector<unsigned char> unzip_process(unsigned char *buf, int file_len){
 
 	/* 2. 获取表示树结构的01序列 */
 	int cnt = 0;
-	vector<bool> bool_code;
+	vector<bool> tree_struct_code;
 	int byte_sequence_len = 0;
 	for (int i=4*8+1; ; i++) {
 		bool v = get_by_bit(buf, pointer++);
 		byte_sequence_len += v;
 		v ? cnt++ : cnt--;
-		bool_code.push_back(v);
+		tree_struct_code.push_back(v);
 		if ( cnt==0 ) {
 			break;
 		}
@@ -291,8 +306,8 @@ vector<unsigned char> unzip_process(unsigned char *buf, int file_len){
 
 	// log
 	cout << "__LINE__ = " << __LINE__ << endl; //log
-	cout << "bool_code.size() = " << bool_code.size() << endl; //log
-	for ( auto v : bool_code ) {
+	cout << "tree_struct_code.size() = " << tree_struct_code.size() << endl; //log
+	for ( auto v : tree_struct_code ) {
 		cout << v;
 	}
 	cout << endl;
@@ -317,7 +332,7 @@ vector<unsigned char> unzip_process(unsigned char *buf, int file_len){
 	cout << endl;
 
 	/* 4. 构建哈夫曼树 */
-	Node *root = decode_hfmTree(bool_code, byte_sequence);
+	Node *root = decode_hfmTree(tree_struct_code, byte_sequence);
 	print_hfmTree(root);
 	cout << "__LINE__ = " << __LINE__ << endl; //log
 
@@ -338,7 +353,10 @@ vector<unsigned char> unzip_process(unsigned char *buf, int file_len){
 }
 
 void linux_zip_file(const char *file_in, const char *file_out){
-	
+	/**
+	 * Linux下，将file_in压缩后存储到file_out
+	 */
+
 	/* 1. 打开文件 */
 	int fd = open(file_in, O_RDONLY);
 	if (fd==-1) {
@@ -380,6 +398,10 @@ void linux_zip_file(const char *file_in, const char *file_out){
 }
 
 void linux_unzip_file(const char *file_in, const char *file_out){
+	/**
+	 * Linux下，将file_in解压后存储到file_out
+	 */
+
 	/* 1. 打开文件*/
 	int fd = open(file_in, O_RDONLY);
 	if (fd==-1) {
@@ -417,8 +439,8 @@ void linux_unzip_file(const char *file_in, const char *file_out){
 }
 
 void windows_zip_file(const char *file_in, const char *file_out) {
-	/* @file_in: 需要压缩的文件路径
-	 * @file_out: 压缩到哪个路径
+	/**
+	 * windows下，将file_in压缩后存储到file_out
 	 */
 	FILE *fp_in = fopen(file_in, "rb");
 	if ( fp_in==NULL ) {
@@ -445,8 +467,8 @@ void windows_zip_file(const char *file_in, const char *file_out) {
 }
 
 void windows_unzip_file(const char *file_in, const char *file_out){
-	/* @file_in: 需要解压的文件路径
-	 * @file_out: 解压到哪个路径
+	/**
+	 * windows下，将file_in解压后存储到file_out
 	 */
 
 	/* 1. 打开文件*/
