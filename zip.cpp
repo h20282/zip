@@ -212,7 +212,8 @@ vector<unsigned char> zip_process(unsigned char *buf, int file_len){
 	/* 5. 计算输出文件的大小(单位：比特)，创建输出缓冲区 */
 	int bool_code_len = bool_code.size();
 	int byte_sequence_len = byte_sequence.size()*8;
-	int out_file_len = 4*8 + bool_code_len + byte_sequence_len;
+	int out_file_len = 3 + bool_code_len + byte_sequence_len;
+	// 3 : useless_bit_cnt
 	for (int i = 0; i < 256; ++i){
 		out_file_len += byte_to_01[i].size()*byte_cnt[i];
 	}
@@ -224,15 +225,16 @@ vector<unsigned char> zip_process(unsigned char *buf, int file_len){
 	cout << "byte_sequence.size() = " << byte_sequence.size() << endl; //log
 	cout << "out_file_len = " << out_file_len << endl; //log
 
-	/* 6.1 将代表有效01序列长度的 32位数字填入缓冲区		*/
-	/*     小端存储，高位字节存在高地址、低位字节存在低地址	*/
-	out_buf_vector[0] = out_file_len >> (0);
-	out_buf_vector[1] = out_file_len >> (8);
-	out_buf_vector[2] = out_file_len >> (16);
-	out_buf_vector[3] = out_file_len >> (24);
+	/* 6.1 将代表文件结尾多少位冗余的数字存进缓冲区头部，占3位（冗余位数只有可能是0~7）*/
+	/*     大端存储，高位在前，低位在后                                            */
+	int useless_bit_cnt = (8 - out_file_len % 8) % 8;
+	set_by_bit(out_buf_char_star, 0, (useless_bit_cnt>>2) & 1);
+	set_by_bit(out_buf_char_star, 1, (useless_bit_cnt>>1) & 1);
+	set_by_bit(out_buf_char_star, 2, (useless_bit_cnt>>0) & 1);
+	cout << "in line " << __LINE__ << " useless_bit_cnt = " << useless_bit_cnt << endl; //log
 
 	/* 6.2 将代表树的结构的01序列填入缓冲区 */
-	int pointer = 4*8;
+	int pointer = 3;
 	for (int i = 0; i < bool_code.size(); ++i){
 		set_by_bit(out_buf_char_star, pointer++, bool_code[i]);
 	}
@@ -256,17 +258,20 @@ vector<unsigned char> zip_process(unsigned char *buf, int file_len){
 	return out_buf_vector;
 }
 
-vector<unsigned char> unzip_process(unsigned char *buf){
+vector<unsigned char> unzip_process(unsigned char *buf, int file_len){
 	/*
 	 *
 	 */
 
-	int pointer = 4*8; // 跳过记录总有效长度的32位
+	int pointer = 3; // 跳过记录结尾无效bit长度的32位
 
-	/* 1. 解析有效01序列的长度 */
-	int end_pos = (buf[0] << (0)) | (buf[1] << (8)) | (buf[2] << (16)) | (buf[3] << (24));
+	/* 1. 解析提取结尾无效bit的长度 */
+	int useless_bit_cnt = 0;
+	useless_bit_cnt += get_by_bit(buf, 0) << 2;
+	useless_bit_cnt += get_by_bit(buf, 1) << 1;
+	useless_bit_cnt += get_by_bit(buf, 2) << 0;
+	cout << "in line " << __LINE__ << " useless_bit_cnt = " << useless_bit_cnt << endl; //log
 	cout << "__LINE__ = " << __LINE__ << endl; //log
-	cout << "end_pos = " << end_pos << endl; //log
 
 	/* 2. 获取表示树结构的01序列 */
 	int cnt = 0;
@@ -319,7 +324,7 @@ vector<unsigned char> unzip_process(unsigned char *buf){
 	/* 5. 根据哈夫曼树解压数据 */
 	vector<unsigned char> ret;
 	Node *curr = root;
-	while ( pointer!=end_pos ) {
+	while ( pointer < file_len*8 - useless_bit_cnt ) {
 		// cout << "pointer = " << pointer << endl; //log
 		// cout << "get_by_bit(buf, pointer) = " << get_by_bit(buf, pointer) << endl; //log
 		curr = get_by_bit(buf, pointer++) ? curr->rchild : curr->lchild;
@@ -387,7 +392,7 @@ void linux_unzip_file(const char *file_in, const char *file_out){
 	read(fd, buf, file_len);
 
 	/* 3. 解压到out_buf缓冲区 */
-	vector<unsigned char> out_buf = unzip_process(buf);
+	vector<unsigned char> out_buf = unzip_process(buf, file_len);
 	// cout << "__LINE__ = " << __LINE__ << endl; //log
 	// cout << "out_buf.size() = " << out_buf.size() << endl; //log
 	// for (auto i : out_buf ) {
@@ -412,6 +417,9 @@ void linux_unzip_file(const char *file_in, const char *file_out){
 }
 
 void windows_zip_file(const char *file_in, const char *file_out) {
+	/* @file_in: 需要压缩的文件路径
+	 * @file_out: 压缩到哪个路径
+	 */
 	FILE *fp_in = fopen(file_in, "rb");
 	if ( fp_in==NULL ) {
 		throw string(file_in) + " in line " + to_string(__LINE__);
@@ -437,6 +445,10 @@ void windows_zip_file(const char *file_in, const char *file_out) {
 }
 
 void windows_unzip_file(const char *file_in, const char *file_out){
+	/* @file_in: 需要解压的文件路径
+	 * @file_out: 解压到哪个路径
+	 */
+
 	/* 1. 打开文件*/
 	FILE *fp_in = fopen(file_in, "rb");
 	if (fp_in==NULL) {
@@ -453,7 +465,7 @@ void windows_unzip_file(const char *file_in, const char *file_out){
 	cout << "buf.size() = " << buf.size() << endl; //log
 
 	/* 3. 解压到out_buf缓冲区 */
-	vector<unsigned char> out_buf = unzip_process(&buf[0]);
+	vector<unsigned char> out_buf = unzip_process(&buf[0], buf.size());
 
 
 	/* 4. 写入到文件 */
@@ -470,6 +482,10 @@ void windows_unzip_file(const char *file_in, const char *file_out){
 }
 
 int main(int argc, char const *argv[]){
+	for ( int i=0; i<argc; i++ ) {
+		printf("%d: %s\n", i, argv[i]);
+	}
+	return 0;
 	// unsigned char buf[] = {1,2,3,1,2,3,4,5,6};
 	// vector<unsigned char> out = zip_process(buf, sizeof buf);
 	// vector<unsigned char> v = unzip_process(&out[0]);
@@ -477,15 +493,30 @@ int main(int argc, char const *argv[]){
 	// 	printf("%d\n", i);
 	// }
 	// return 0;
-	unsigned char buf[] = {1,2,3,4,5,6};
+	#if 0
+	unsigned char buf[1000];
+	for (int i = 0; i < 1000; ++i){
+		buf[i] = i;
+	}
 	vector<unsigned char> v = zip_process(buf, sizeof(buf)/sizeof(buf[0]));
-	
+	vector<unsigned char> res = unzip_process(&v[0], v.size());
+	cout << "------------------------------------------------------------------------------------------" << endl;
+	cout << "res.size() = " << res.size() << endl; //log
+	bool right = true;
+	for (int i = 0; i < 1000; ++i){
+		right = right && res[i]==buf[i];
+	}
+	cout << "right = " << right << endl; //log
 	return 0;
+	#endif
 
+	// const char *a = "snake.mp4";
+	// const char *b = "snake.mp4.zip";
+	// const char *c = "snake0.mp4";
 
-	const char *a = "snake.mp4";
-	const char *b = "snake.mp4.zip";
-	const char *c = "snake0.mp4";
+	const char *a = "a.txt";
+	const char *b = "a.txt.zip";
+	const char *c = "aa.txt";
 	try{
 		windows_zip_file(a, b);
 		windows_unzip_file(b, c);
@@ -506,4 +537,22 @@ int main(int argc, char const *argv[]){
 
 	return 0;
 }
+
+/*
+
+fileName_input -> fileName_output
+zip [fileName_input] [fileName_output]
+
+zip
+请输入需要压缩的文件路径：
+...
+请输入压缩到的文件路径：
+...
+
+
+
+
+
+*/
+
 
