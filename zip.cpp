@@ -17,7 +17,7 @@ using namespace std;
 
 
 struct Node{
-	unsigned char c; // 此节点是哪个字节，仅在叶子节点有意义
+	unsigned char c; // 此节点是哪个字节，仅当是叶子节点有意义
 	int weight; // 此节点的权值
 	Node *lchild;
 	Node *rchild;
@@ -29,6 +29,7 @@ struct Node{
 		rchild = rchild_;
 	}
 };
+
 
 class Compare_Node_Pointer{
   public:
@@ -49,7 +50,7 @@ Node *create_hfmTree_by_byte_cnt(int const byte_cnt[]){
 			q.push( new Node(i, byte_cnt[i]) );
 		}
 	}
-	cout << "q.size() = " << q.size() << endl; //log
+	// cout << "q.size() = " << q.size() << endl; //log
 	while ( q.size() > 1 ) {
 		Node *a = q.top(); q.pop();
 		Node *b = q.top(); q.pop();
@@ -72,10 +73,10 @@ void print_hfmTree(Node *root, int deep = 1, string code=".") {
 	// cout << "deep = " << deep << endl; //log
 	print_hfmTree(root->rchild, deep+1, code+"1");
 	for (int i = 0; i < deep; ++i){
-		printf(i==deep-1?"+----": (code[i]==code[i+1]?"     ":"|    "));
+		printf(i==deep-1?"+---": (code[i]==code[i+1]?"     ":"|    "));
 	}
 	if (root->lchild){
-		printf("\b(_)\n");
+		printf("(_)\n");
 	}else{
 		printf("(%d)\n", root->c);
 	}
@@ -209,24 +210,29 @@ vector<unsigned char> zip_process(unsigned char *buf, int file_len){
 	encode_hfmTree(root, tree_struct_code, byte_sequence);
 	//log
 	cout << "__LINE__ = " << __LINE__ << endl; //log
+	cout << "tree_struct_code.size() = " << tree_struct_code.size() << endl; //log
 	for ( auto v : tree_struct_code ) {
 		cout << v;
 	}
 	cout << endl;
+	cout << "byte_sequence.size() = " << byte_sequence.size() << endl; //log
 	for ( auto v : byte_sequence ) {
 		printf("%d ", v);
 	}
 	cout << endl;
 
-	/* 4. 获取每个字节对应的01序列 */
+	/* 4. 获取每个字节对应的01序列(编码表) */
 	vector<string > encode_table(256);
 	get_encode_table(encode_table, root);
+	//log
+	for (int i = 0; i < 256; ++i){
+		printf("%d -> %s\n", i, encode_table[i].c_str());
+	}
 
 	/* 5. 计算输出文件的大小(单位：比特)，创建输出缓冲区 */
 	int tree_struct_code_len = tree_struct_code.size();
 	int byte_sequence_len = byte_sequence.size()*8;
 	int out_file_len = 3 + tree_struct_code_len + byte_sequence_len;
-	// 3 : useless_bit_cnt
 	for (int i = 0; i < 256; ++i){
 		out_file_len += encode_table[i].size()*byte_cnt[i];
 	}
@@ -239,7 +245,7 @@ vector<unsigned char> zip_process(unsigned char *buf, int file_len){
 	cout << "out_file_len = " << out_file_len << endl; //log
 
 	/* 6.1 将代表文件结尾多少位冗余的数字存进缓冲区头部，占3位（冗余位数只有可能是0~7）*/
-	/*     大端存储，高位在前，低位在后                                            */
+	/*     类似于大端存储，高位在前，低位在后                                            */
 	int useless_bit_cnt = (8 - out_file_len % 8) % 8;
 	set_by_bit(out_buf_char_star, 0, (useless_bit_cnt>>2) & 1);
 	set_by_bit(out_buf_char_star, 1, (useless_bit_cnt>>1) & 1);
@@ -268,6 +274,7 @@ vector<unsigned char> zip_process(unsigned char *buf, int file_len){
 		}
 	}
 	cout << "pointer = " << pointer << endl; //log
+	printf("压缩率：%.3lf%%\n", (double)out_buf_vector.size()/file_len*100);
 	return out_buf_vector;
 }
 
@@ -289,20 +296,17 @@ vector<unsigned char> unzip_process(unsigned char *buf, int file_len){
 	cout << "__LINE__ = " << __LINE__ << endl; //log
 
 	/* 2. 获取表示树结构的01序列 */
-	int cnt = 0;
+	int cnt_0 = 0;
+	int cnt_1 = 0;
 	vector<bool> tree_struct_code;
-	int byte_sequence_len = 0;
-	for (int i=4*8+1; ; i++) {
+	do{
 		bool v = get_by_bit(buf, pointer++);
-		byte_sequence_len += v;
-		v ? cnt++ : cnt--;
 		tree_struct_code.push_back(v);
-		if ( cnt==0 ) {
-			break;
-		}
-	}
-	byte_sequence_len /= 2;
-	byte_sequence_len++;
+		cnt_0 += v==0;
+		cnt_1 += v==1;
+	}while ( cnt_0 != cnt_1 );
+
+	int byte_sequence_len = tree_struct_code.size()/2/2+1;
 
 	// log
 	cout << "__LINE__ = " << __LINE__ << endl; //log
@@ -504,10 +508,6 @@ void windows_unzip_file(const char *file_in, const char *file_out){
 }
 
 int main(int argc, char const *argv[]){
-	for ( int i=0; i<argc; i++ ) {
-		printf("%d: %s\n", i, argv[i]);
-	}
-	return 0;
 	// unsigned char buf[] = {1,2,3,1,2,3,4,5,6};
 	// vector<unsigned char> out = zip_process(buf, sizeof buf);
 	// vector<unsigned char> v = unzip_process(&out[0]);
@@ -515,10 +515,11 @@ int main(int argc, char const *argv[]){
 	// 	printf("%d\n", i);
 	// }
 	// return 0;
-	#if 0
+	#if 1
+	freopen("out.txt", "w", stdout);
 	unsigned char buf[1000];
 	for (int i = 0; i < 1000; ++i){
-		buf[i] = i;
+		buf[i] = i*i;
 	}
 	vector<unsigned char> v = zip_process(buf, sizeof(buf)/sizeof(buf[0]));
 	vector<unsigned char> res = unzip_process(&v[0], v.size());
@@ -529,6 +530,8 @@ int main(int argc, char const *argv[]){
 		right = right && res[i]==buf[i];
 	}
 	cout << "right = " << right << endl; //log
+	fclose(stdout);
+	system("out.txt");
 	return 0;
 	#endif
 
