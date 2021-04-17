@@ -30,21 +30,16 @@ struct Node{
 	}
 };
 
-
-class Compare_Node_Pointer{
-  public:
-    bool operator () (Node* &a, Node* &b) const{
-        return a->weight > b->weight;
-    }
-};
-
 Node *create_hfmTree_by_byte_cnt(int const byte_cnt[]){
 	/**
 	 *根据byte_cnt生成哈夫曼树，然后返回该树的根节点
 	 * @byte_cnt: 长度为256的数组，保存某字节在文件中出现的次数
 	 * 			  例如：byte_cnt[65] = 101 表示字节65在文件中出现了101次 
 	 */
-	priority_queue<Node*, vector<Node*>, Compare_Node_Pointer> q;
+	
+	priority_queue<Node*, vector<Node*>, auto(*)(Node*,Node*)->bool > q{
+		[](Node *a, Node *b) -> bool{return a->weight > b->weight;}
+	};
 	for ( int i=0; i<256; i++ ){
 		if ( byte_cnt[i] ) {
 			q.push( new Node(i, byte_cnt[i]) );
@@ -69,11 +64,10 @@ void print_hfmTree(Node *root, int deep = 1, string code=".") {
 	if (!root) {
 		return;
 	}
-	// cout << "__LINE__ = " << __LINE__ << endl; //log
-	// cout << "deep = " << deep << endl; //log
 	print_hfmTree(root->rchild, deep+1, code+"1");
 	for (int i = 0; i < deep; ++i){
-		printf(i==deep-1?"+---": (code[i]==code[i+1]?"     ":"|    "));
+		// printf(i==deep-1?"+---": (code[i]==code[i+1]?"     ":"|    "));
+		printf(i==deep-1?(code[i]=='1'?"┌────":"└────"): (code[i]==code[i+1]?"     ":"│    "));
 	}
 	if (root->lchild){
 		printf("(_)\n");
@@ -175,7 +169,7 @@ void get_encode_table(vector<string> &encode_table, Node * root, string curr_cod
 	 * 从哈夫曼树获取编码表
 	 * @encode_table 输出，编码表，即（ 字节 --> 01序列 ）的映射关系
 	 * @root 哈夫曼树的根节点
-	 * @curr_code 用于递归迭代
+	 * @curr_code 当前路径码
 	 */
 	if (root->lchild==NULL){
 		encode_table[root->c] = curr_code;
@@ -508,6 +502,46 @@ void windows_unzip_file(const char *file_in, const char *file_out){
 }
 
 int main(int argc, char const *argv[]){
+	// zip zip [file_in] [file_out]
+	// zip upzip [file_in] [file_out]
+	string mode;
+	string file_in;
+	string file_out;
+	if ( argc>=2 ) {
+		mode = string(argv[1]);
+	}
+	if ( argc>=3 ) {
+		file_in = string(argv[2]);
+	}
+	if ( argc>=4 ) {
+		file_out = string(argv[3]);
+	}
+
+	if (mode=="") {
+		cout << "mode:" << endl;
+		cin>>mode;
+	}
+	if (file_in=="") {
+		cout << "file_in:" << endl;
+		cin>>file_in;
+	}
+	if (file_out=="") {
+		cout << "file_out:" << endl;
+		cin>>file_out;
+	}
+
+
+	try{
+		if (mode=="zip") {
+			windows_zip_file(file_in.c_str(), file_out.c_str());
+		} else if (mode=="unzip") {
+			windows_unzip_file(file_in.c_str(), file_out.c_str());
+		}
+	}catch(string s){
+		cout << s << endl;
+	}
+
+
 	// unsigned char buf[] = {1,2,3,1,2,3,4,5,6};
 	// vector<unsigned char> out = zip_process(buf, sizeof buf);
 	// vector<unsigned char> v = unzip_process(&out[0]);
@@ -515,10 +549,10 @@ int main(int argc, char const *argv[]){
 	// 	printf("%d\n", i);
 	// }
 	// return 0;
-	#if 1
-	freopen("out.txt", "w", stdout);
+	#if 0
+	// freopen("out.txt", "w", stdout);
 	unsigned char buf[1000];
-	for (int i = 0; i < 1000; ++i){
+	for (int i = 0; i < sizeof(buf)/sizeof(buf[0]); ++i){
 		buf[i] = i*i;
 	}
 	vector<unsigned char> v = zip_process(buf, sizeof(buf)/sizeof(buf[0]));
@@ -526,15 +560,20 @@ int main(int argc, char const *argv[]){
 	cout << "------------------------------------------------------------------------------------------" << endl;
 	cout << "res.size() = " << res.size() << endl; //log
 	bool right = true;
-	for (int i = 0; i < 1000; ++i){
+	if (sizeof(buf)/sizeof(buf[0]) != res.size()) {
+		right = false;
+	}
+	for (int i = 0; i < res.size(); ++i){
 		right = right && res[i]==buf[i];
+
 	}
 	cout << "right = " << right << endl; //log
-	fclose(stdout);
-	system("out.txt");
+	// fclose(stdout);
+	// system("out.txt");
 	return 0;
 	#endif
 
+	#if 0
 	// const char *a = "snake.mp4";
 	// const char *b = "snake.mp4.zip";
 	// const char *c = "snake0.mp4";
@@ -558,6 +597,7 @@ int main(int argc, char const *argv[]){
 	// 	}
 	// 	cout << "" << endl;
 	// }
+	#endif
 
 
 	return 0;
